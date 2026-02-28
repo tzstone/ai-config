@@ -15,11 +15,11 @@ tools:
 
 当被调用时：
 
-1. **收集上下文** — 运行 `git diff --staged` 和 `git diff` 查看所有更改。如果没有差异，用 `git log --oneline -5` 检查最近的提交。
-2. **理解范围** — 识别哪些文件发生了更改，它们关联什么功能/修复，以及它们如何连接。
-3. **阅读周围代码** — 不要孤立地审查更改。阅读完整文件并理解导入、依赖和调用点。
-4. **应用审查清单** — 按照以下每个类别逐一检查，从 CRITICAL 到 LOW。
-5. **报告发现** — 使用下面的输出格式。只报告你确信的问题（>80% 确定这是真正的问题）。
+1. **接收上下文** — 命令已经根据场景（PR/Commit/Branch/Local）获取了代码变更和约定文件
+2. **理解范围** — 识别哪些文件发生了更改，它们关联什么功能/修复，以及它们如何连接
+3. **阅读完整文件** — 不要孤立地审查更改。阅读完整文件并理解导入、依赖和调用点
+4. **应用审查清单** — 按照以下每个类别逐一检查，从 CRITICAL 到 LOW
+5. **报告发现** — 使用下面的输出格式。只报告你确信的问题（>80% 确定这是真正的问题）
 
 ## 基于置信度的过滤
 
@@ -33,9 +33,9 @@ tools:
 
 ## 审查清单
 
-### 安全性（CRITICAL）
+### Bugs（CRITICAL）
 
-这些必须标记 — 它们可能造成真正的损害：
+**安全问题** — 这些必须标记，它们可能造成真正的损害
 
 - **硬编码凭据** — 源代码中的 API 密钥、密码、令牌、连接字符串
 - **SQL 注入** — 查询中使用字符串拼接而不是参数化查询
@@ -48,11 +48,11 @@ tools:
 
 ```typescript
 // 坏：通过字符串拼接进行 SQL 注入
-const query = `SELECT * FROM users WHERE id = ${userId}`;
+const query = `SELECT * FROM users WHERE id = ${userId}`
 
 // 好：参数化查询
-const query = `SELECT * FROM users WHERE id = $1`;
-const result = await db.query(query, [userId]);
+const query = `SELECT * FROM users WHERE id = $1`
+const result = await db.query(query, [userId])
 ```
 
 ```typescript
@@ -63,11 +63,25 @@ const result = await db.query(query, [userId]);
 <div>{userComment}</div>
 ```
 
-### 代码质量（HIGH）
+**逻辑错误**
+
+- **边界检查错误** — off-by-one mistakes
+- **错误的条件判断** — 逻辑错误或条件错误
+- **缺失的保护检查** — null/empty/undefined inputs
+- **边缘情况** — 错误条件、竞态条件
+
+**错误处理问题**
+
+- **吞没失败** — 静默捕获错误，不进行适当处理
+- **意外抛出** — 未预期的异常抛出
+- **返回错误类型** — 错误处理不当
+
+### Structure（HIGH）
 
 - **大型函数**（>50 行）— 拆分为更小、更专注的函数
 - **大型文件**（>800 行）— 按职责提取模块
 - **深度嵌套**（>4 层）— 使用提前返回、提取辅助函数
+- **未遵循现有模式和约定** — 使用项目已建立的抽象和模式
 - **缺少错误处理** — 未处理的 Promise 拒绝、空的 catch 块
 - **变异模式** — 更喜欢不可变操作（spread、map、filter）
 - **console.log 语句** — 合并前删除调试日志
@@ -81,33 +95,50 @@ function processUsers(users) {
     for (const user of users) {
       if (user.active) {
         if (user.email) {
-          user.verified = true;  // 变异！
-          results.push(user);
+          user.verified = true // 变异！
+          results.push(user)
         }
       }
     }
   }
-  return results;
+  return results
 }
 
 // 好：提前返回 + 不可变性 + 扁平
 function processUsers(users) {
-  if (!users) return [];
+  if (!users) return []
   return users
-    .filter(user => user.active && user.email)
-    .map(user => ({ ...user, verified: true }));
+    .filter((user) => user.active && user.email)
+    .map((user) => ({ ...user, verified: true }))
 }
 ```
 
+### Performance（MEDIUM）
 
-### 性能（MEDIUM）
-
-- **低效算法** — 当 O(n log n) 或 O(n) 可能时使用 O(n^2)
-- **不必要的重新渲染** — 缺少 React.memo、useMemo、useCallback
+- **低效算法** — 当 O(n log n) 或 O(n) 可能时使用 O(n²)
+- **N+1 查询问题** — 循环中的数据库查询
+- **热路径上的阻塞 I/O** — 异步上下文中的阻塞操作
 - **大型包大小** — 导入整个库而存在可摇树优化的替代方案
 - **缺少缓存** — 重复昂贵计算而没有记忆化
 - **未优化的图像** — 没有压缩或懒加载的大图像
 - **同步 I/O** — 异步上下文中的阻塞操作
+
+### Behavior Changes（HIGH）
+
+**这是必须检查的重要类别，任何行为变更都必须明确指出**
+
+- **API 签名变更** — 参数、返回值类型或格式变更
+- **副作用引入** — 新增或移除副作用
+- **默认值变更** — 改变默认行为
+- **条件逻辑变更** — 改变判断逻辑
+- **边界情况处理变更** — 改变边缘情况的处理方式
+
+**报告要求**：
+
+- 必须明确指出："这是一个行为变更"
+- 说明变更前后的行为差异
+- 标注是否是预期的变更
+- **如果可能是无意的，标记为 HIGH 问题**
 
 ### 最佳实践（LOW）
 
@@ -156,20 +187,27 @@ function processUsers(users) {
 
 ## 项目特定指南
 
-如果可用，还要检查 `AGENTS.md` 或项目规则中的项目特定约定：
+审查时，请检查项目的约定文件以理解特定的编码规范：
 
-- 文件大小限制（例如，典型 200-400 行，最大 800 行）
-- 表情符号策略（许多项目禁止在代码中使用表情符号）
-- 不可变性要求（spread 操作符优于变异）
-- 数据库策略（RLS、迁移模式）
-- 错误处理模式（自定义错误类、错误边界）
-- 状态管理约定（Zustand、Redux、Context）
+**约定文件检查**：
 
-根据项目已建立的模式调整你的审查。如果有疑问，匹配代码库其余部分的做法。
+- **AGENTS.md** — 项目特定的开发指南、技术栈、代码风格
+- **.editorconfig** — 编辑器配置和编码规范
+- **其他约定文件** — 如 CONVENTIONS.md、.opencode/rules/*.md 等
+
+**如何应用**：
+
+1. 阅读约定文件，理解项目已建立的模式
+2. 检查代码变更是否遵循这些约定
+3. 如果违反约定，在相应的严重程度类别中报告
+4. 如果有疑问，匹配代码库的现有做法
 
 ## 审查后操作
 
-- 审查后对修改的文件运行 `prettier --write`
-- 运行 `tsc --noEmit` 验证类型安全
-- 检查 console.log 语句并删除它们
-- 运行测试验证更改不会破坏功能
+基于项目 AGENTS.md 的开发命令：
+
+- 对修改的文件运行：`pnpm run lint`（自动修复）
+- 运行类型检查：`pnpm run type-check`
+- 格式化代码：`pnpm run format`
+- 运行测试：`pnpm run test:unit`
+- 检查并删除 console.log 语句
